@@ -9,6 +9,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameg
 
 db = SQLAlchemy(app)
 
+ma = Marshmallow(app)
+
 class Card(db.Model):
     __tablename__ = 'cards'
     
@@ -17,6 +19,13 @@ class Card(db.Model):
     description = db.Column(db.Text())
     date_created = db.Column(db.Date())
 
+
+class CardSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'title', 'description', 'date_created')
+
+card_schema = CardSchema()
+cards_schema = CardSchema(many=True)
 
 @app.cli.command('create')
 def create_db():
@@ -47,6 +56,13 @@ def seed_db():
 @app.route('/')
 def index():
     return 'Hello World!'
+
+
+@app.route('/cards', methods=['GET'])
+def get_cards():
+    cards_list = Card.query.all()
+    result = cards_schema.dump(cards_list)
+    return result
 
 if __name__ == '__main__':
     app.run(debug=True)

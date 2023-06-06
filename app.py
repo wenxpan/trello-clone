@@ -55,6 +55,18 @@ def create_db():
 
 @app.cli.command('seed')
 def seed_db():
+
+    users = [
+        User(email='admin@spam.com',
+             password='spinynorman',
+             is_admin=True
+             ),
+        User(
+            name='John Cleese',
+            email='cleese@spam.com',
+            password='tisbutascratch'
+        )
+    ]
     # create an instance of the Card model in memory
     cards = [Card(
         title='Start the project',
@@ -77,9 +89,11 @@ def seed_db():
 
     # truncate table; delete all rows in the table
     db.session.query(Card).delete()
+    db.session.query(User).delete()
 
     # add the card to the session (transaction)
     db.session.add_all(cards)
+    db.session.add_all(users)
 
     # commit the transaction to the database
     db.session.commit()

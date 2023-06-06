@@ -1,7 +1,9 @@
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date
 from flask_marshmallow import Marshmallow
+from flask_bcrypt import Bcrypt
+from sqlalchemy.exc import IntegrityError
 
 app = Flask(__name__)
 
@@ -10,6 +12,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameg
 db = SQLAlchemy(app)
 
 ma = Marshmallow(app)
+
+bcrypt = Bcrypt(app)
 
 
 class User(db.Model):
@@ -24,7 +28,7 @@ class User(db.Model):
 
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ('name', 'email', 'is_admin')
+        fields = ('name', 'email', 'password', 'is_admin')
 
 
 class Card(db.Model):
@@ -58,13 +62,15 @@ def seed_db():
 
     users = [
         User(email='admin@spam.com',
-             password='spinynorman',
+             password=bcrypt.generate_password_hash(
+                 'spinynorman').decode('utf-8'),
              is_admin=True
              ),
         User(
             name='John Cleese',
             email='cleese@spam.com',
-            password='tisbutascratch'
+            password=bcrypt.generate_password_hash(
+                'tisbutascratch').decode('utf-8')
         )
     ]
     # create an instance of the Card model in memory
@@ -98,6 +104,23 @@ def seed_db():
     # commit the transaction to the database
     db.session.commit()
     print('Models seeded')
+
+
+@app.route('/register', methods=['POST'])
+def register():
+    try:
+        user_info = UserSchema().load(request.json)
+        user = User(email=user_info['email'],
+                    password=bcrypt.generate_password_hash(
+                        user_info['password']).decode('utf-8'),
+                    name=user_info['name'])
+
+        db.session.add(user)
+        db.session.commit()
+
+        return UserSchema(exclude=['password']).dump(user), 201
+    except IntegrityError:
+        return {'error': 'Email address already in use'}, 409
 
 
 @app.route('/cards')

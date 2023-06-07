@@ -10,9 +10,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameggs123@127.0.0.1:5432/trello'
 
 db = SQLAlchemy(app)
-
 ma = Marshmallow(app)
-
 bcrypt = Bcrypt(app)
 
 
@@ -109,17 +107,23 @@ def seed_db():
 @app.route('/register', methods=['POST'])
 def register():
     try:
+        # parse, sanitize and validate the incoming JSON data
+        # via the schema
         user_info = UserSchema().load(request.json)
+        # create a new User model instance with the schema data
         user = User(email=user_info['email'],
                     password=bcrypt.generate_password_hash(
                         user_info['password']).decode('utf-8'),
                     name=user_info['name'])
 
+        # add and commit the new user
         db.session.add(user)
         db.session.commit()
 
+        # return new user, excluding the password, 201: created
         return UserSchema(exclude=['password']).dump(user), 201
     except IntegrityError:
+        # return conflict
         return {'error': 'Email address already in use'}, 409
 
 

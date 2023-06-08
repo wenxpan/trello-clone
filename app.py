@@ -1,56 +1,41 @@
-from flask import Flask, request
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, request, abort
 from datetime import date
-from flask_marshmallow import Marshmallow
-from flask_bcrypt import Bcrypt
-from sqlalchemy.exc import IntegrityError
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
+from os import environ
+from dotenv import load_dotenv
+from sqlalchemy.exc import IntegrityError
+from models.user import User, UserSchema
+from models.card import Card, CardSchema
+from init import db, ma, bcrypt, jwt
+
+load_dotenv()
 
 app = Flask(__name__)
 
-app.config['JWT_SECRET_KEY'] = 'Inni Minni Hedleg Doo'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameggs123@127.0.0.1:5432/trello'
+app.config['JWT_SECRET_KEY'] = environ.get('JWT_KEY')
 
-db = SQLAlchemy(app)
-ma = Marshmallow(app)
-bcrypt = Bcrypt(app)
-jwt = JWTManager(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = environ.get('DB_URI')
 
-
-class User(db.Model):
-    __tablename__ = 'users'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    email = db.Column(db.String, nullable=False, unique=True)
-    password = db.Column(db.String, nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
+db.init_app(app)
+ma.init_app(app)
+jwt.init_app(app)
+bcrypt.init_app(app)
 
 
-class UserSchema(ma.Schema):
-    class Meta:
-        fields = ('name', 'email', 'password', 'is_admin')
+def admin_required():
+    user_email = get_jwt_identity()
+    stmt = db.select(User).filter_by(email=user_email)
+    user = db.session.scalar(stmt)
+    # check that user is truthy and admin
+    if not (user and user.is_admin):
+        abort(401)
 
 
-class Card(db.Model):
-    __tablename__ = 'cards'
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    description = db.Column(db.Text())
-    status = db.Column(db.String(30))
-    date_created = db.Column(db.Date())
-
-
-class CardSchema(ma.Schema):
-    class Meta:
-        fields = ('id', 'title', 'description', 'status', 'date_created')
-
-
-card_schema = CardSchema()
-cards_schema = CardSchema(many=True)
+@app.errorhandler(401)
+def unauthorized(err):
+    return {'error': 'You must be an admin'}, 401
 
 
 @app.cli.command('create')
@@ -148,11 +133,17 @@ def login():
 
 
 @app.route('/cards')
+@jwt_required()
 def all_cards():
+    # check if the user is admin
+    admin_required()
+
     # stmt = db.select(Card).order_by(Card.status.desc())
     stmt = db.select(Card)
+    # returns a list of objects?
     cards = db.session.scalars(stmt).all()
-    return cards_schema.dump(cards)
+    print(cards[0].__dict__)
+    return CardSchema(many=True).dump(cards)
 
 
 @app.cli.command('cards')
@@ -160,7 +151,7 @@ def show_cards():
     stmt = db.select(Card)
     cards = db.session.scalars(stmt).all()
 
-    print(cards_schema.dump(cards))
+    print(CardSchema(many=True).dump(cards))
 
 
 @app.route('/')

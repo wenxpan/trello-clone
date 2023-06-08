@@ -1,9 +1,9 @@
-from flask import Blueprint
+from flask import Blueprint, abort
 from models.user import User, UserSchema
 from init import db, bcrypt
 from flask import request
 from sqlalchemy.exc import IntegrityError
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity
 from datetime import timedelta
 
 auth_bp = Blueprint('auth', __name__)
@@ -45,3 +45,12 @@ def login():
             return {'error': 'Invalid email address or password'}, 401
     except KeyError:
         return {'error': 'Email and password are required'}, 400
+
+
+def admin_required():
+    user_email = get_jwt_identity()
+    stmt = db.select(User).filter_by(email=user_email)
+    user = db.session.scalar(stmt)
+    # check that user is truthy and admin
+    if not (user and user.is_admin):
+        abort(401)

@@ -9,6 +9,7 @@ from models.user import User, UserSchema
 from models.card import Card, CardSchema
 from init import db, ma, bcrypt, jwt
 from blueprints.cli_bp import cli_bp
+from blueprints.auth_bp import auth_bp
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ def unauthorized(err):
 
 
 app.register_blueprint(cli_bp)
+app.register_blueprint(auth_bp)
 
 
 @app.route('/cards')
